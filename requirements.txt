@@ -1,6 +1,6 @@
 streamlit
 openai
-langchain==0.0.363
+langchain==0.0.240, <2
 langchain-community
 tiktoken
 faiss-cpu
@@ -11,3 +11,4 @@ python-dotenv
 pandas
 numpy
 requests
+chromadb
