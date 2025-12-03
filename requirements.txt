@@ -1,0 +1,10 @@
+streamlit
+openai
+numpy
+pandas
+PyPDF2
+pdfminer.six
+scikit-learn
+faiss-cpu          # only if you actually use Faiss (may fail on some build environments)
+sentence-transformers
+tqdm
