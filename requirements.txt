@@ -1,6 +1,6 @@
 streamlit
 openai
-langchain
+langchain==0.0.363
 langchain-community
 tiktoken
 faiss-cpu
