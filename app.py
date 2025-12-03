@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import logging
 
 from pdfutils import extract_pdf_text, chunk_text
 from embeddings import build_vector_store
@@ -37,6 +38,76 @@ if uploaded_pdf:
     st.session_state.vectordb = build_vector_store(chunks)
     st.sidebar.success("Vector DB Built! Chat Ready ✔")
 
+    # -------------------------------------------------
+    # FIX: normalize vectordb.embedding_function safely
+    # -------------------------------------------------
+    try:
+        vdb = st.session_state.vectordb
+        if vdb is not None:
+            orig = getattr(vdb, "embedding_function", None)
+
+            def _wrapped_embedding(x):
+                """
+                Safe embedding handler. Works for:
+                - callable embedding_function
+                - DummyEmbeddings object (embed_query, embed_documents)
+                - vectordb embed_query / embed_documents
+                """
+                # 1) If orig is callable
+                if callable(orig):
+                    try:
+                        return orig(x)
+                    except TypeError:
+                        if isinstance(x, str):
+                            return orig([x])[0]
+                        return orig(list(x))
+
+                # 2) orig is an embedding object
+                if orig is not None:
+                    # embed_query
+                    if hasattr(orig, "embed_query") and callable(orig.embed_query):
+                        try:
+                            if isinstance(x, str):
+                                return orig.embed_query(x)
+                            return [orig.embed_query(t) for t in x]
+                        except Exception:
+                            pass
+
+                    # embed_documents
+                    if hasattr(orig, "embed_documents") and callable(orig.embed_documents):
+                        try:
+                            if isinstance(x, str):
+                                return orig.embed_documents([x])[0]
+                            return orig.embed_documents(list(x))
+                        except Exception:
+                            pass
+
+                # 3) Try vectordb-level embed_query
+                if hasattr(vdb, "embed_query") and callable(vdb.embed_query):
+                    try:
+                        if isinstance(x, str):
+                            return vdb.embed_query(x)
+                        return [vdb.embed_query(t) for t in x]
+                    except Exception:
+                        pass
+
+                # 4) vectordb embed_documents
+                if hasattr(vdb, "embed_documents") and callable(vdb.embed_documents):
+                    try:
+                        if isinstance(x, str):
+                            return vdb.embed_documents([x])[0]
+                        return vdb.embed_documents(list(x))
+                    except Exception:
+                        pass
+
+                raise TypeError("Unable to produce embeddings for query input.")
+
+            # assign wrapped embedding function
+            vdb.embedding_function = _wrapped_embedding
+
+    except Exception as e:
+        logging.exception("Failed normalizing embedding function: %s", e)
+
 
 # -------------------------------------------------
 # Main Chat Interface
@@ -71,4 +142,3 @@ else:
         # Display bot answer immediately
         with st.chat_message("assistant"):
             st.write(answer)
-
